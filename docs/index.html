@@ -67,7 +67,6 @@
     .square.selected   { background: #8fbcdb !important; }
     .square.check      { background: radial-gradient(circle, #ff4d4d 0%, #e00 40%, transparent 75%) !important; }
 
-    /* Dot for a legal move onto an empty square */
     .square.target::after {
       content: "";
       width: 28%;
@@ -75,7 +74,6 @@
       border-radius: 50%;
       background: rgba(0, 0, 0, 0.22);
     }
-    /* Ring for a legal capture */
     .square.capture::after {
       content: "";
       position: absolute;
@@ -99,7 +97,6 @@
       text-shadow: 0 0 1px #fff, 0 2px 3px rgba(0, 0, 0, 0.4);
     }
 
-    /* Coordinates in the corners of edge squares */
     .coord {
       position: absolute;
       font-size: 11px;
@@ -111,12 +108,42 @@
     .light .coord { color: #b58863; }
     .dark  .coord { color: #f0d9b5; }
 
-    /* ---------- Controls ---------- */
+    /* ---------- Status + ticker ---------- */
     .status {
       min-height: 24px;
       font-size: 18px;
       font-weight: 500;
     }
+
+    /* NEW: the live "thinking" strip, a preview of the newspaper ticker */
+    .ticker {
+      width: min(90vw, 560px);
+      min-height: 34px;
+      padding: 8px 14px;
+      background: #111;
+      color: #9be29b;
+      font-family: Consolas, "Courier New", monospace;
+      font-size: 13px;
+      border-radius: 4px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* NEW: a spinner that keeps spinning while the engine thinks.
+       If the page were frozen, this would stop. */
+    .spinner {
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      margin-right: 8px;
+      border: 2px solid #9be29b;
+      border-top-color: transparent;
+      border-radius: 50%;
+      vertical-align: -1px;
+      animation: spin 0.7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
 
     .controls {
       display: flex;
@@ -152,11 +179,12 @@
 <body>
   <div class="app">
     <h1 id="title">Chess Engine</h1>
-    <p class="subtitle">Written in C++ · compiled to WebAssembly</p>
+    <p class="subtitle">Written in C++ · compiled to WebAssembly · running on a Web Worker</p>
 
     <div class="board" id="board"></div>
 
     <div class="status" id="status">Loading engine...</div>
+    <div class="ticker" id="ticker">engine idle</div>
 
     <div class="controls">
       <button id="newGame">New Game</button>
@@ -170,7 +198,6 @@
     <div class="footer">You play White. Click a piece, then click where to move it.</div>
   </div>
 
-  <script src="chess.js"></script>
   <script>
     // ============ PERSONALIZE THESE ============
     const ENGINE_NAME  = 'Chess Engine';                      // ← your engine's name!
@@ -179,39 +206,80 @@
     const DRAW_MESSAGE = 'Stalemate. I guess We tied.';
     // ===========================================
 
-    // Same glyph for both colors; CSS makes one white, one black.
-    // \uFE0E forces text style (not emoji) on Windows.
     const GLYPHS = { k: '♚', q: '♛', r: '♜', b: '♝', n: '♞', p: '♟' };
 
     const boardEl  = document.getElementById('board');
     const statusEl = document.getElementById('status');
+    const tickerEl = document.getElementById('ticker');
     const depthEl  = document.getElementById('depth');
 
     document.getElementById('title').textContent = ENGINE_NAME;
     document.title = ENGINE_NAME;
 
-    let engine;
-    let selected = -1;      // square the player clicked, or -1
-    let targets  = [];      // legal destination squares for the selected piece
-    let lastMove = [];      // [from, to] of the last move, for highlighting
-    let busy     = false;   // true while the engine is thinking
+    // The engine runs on its own thread now. We talk to it with messages.
+    const worker = new Worker('engine-worker.js');
+
+    let state    = null;    // latest position from the engine: board, status, legal moves...
+    let selected = -1;
+    let targets  = [];
+    let lastMove = [];
+    let busy     = true;    // true until the engine has loaded, and while it thinks
     let gameOver = false;
+    let considered = [];    // moves the engine has looked at this turn (for the ticker)
 
     function setStatus(text) { statusEl.textContent = text; }
 
-    // "e2" -> 52, same math as your C++ squareIndex
-    function sqIndex(name) {
-      return (8 - Number(name[1])) * 8 + (name.charCodeAt(0) - 97);
-    }
+    // ---------- Messages from the engine ----------
+    worker.onmessage = (event) => {
+      const msg = event.data;
 
+      if (msg.type === 'ready' || msg.type === 'state') {
+        state = msg.state;
+        busy = false;
+        render();
+        setStatus('Your move.');
+        tickerEl.textContent = 'engine idle';
+      }
+
+      if (msg.type === 'played') {
+        state = msg.state;
+        console.log('you played', msg.san);
+        lastMove = [msg.from, msg.to];
+        render();
+        if (!checkGameOver()) engineTurn();
+      }
+
+      if (msg.type === 'considering') {
+        // Arrives LIVE while the engine is still searching
+        considered.push(msg.san);
+        tickerEl.innerHTML = '<span class="spinner"></span>considering ' +
+          considered.slice(-6).join(' … ');
+      }
+
+      if (msg.type === 'engineMoved') {
+        state = msg.state;
+        busy = false;
+        const r = msg.result;
+        if (r) {
+          lastMove = [r.from, r.to];
+          console.log('engine played', r);
+          tickerEl.textContent = 'played ' + r.san + ' · searched ' +
+            r.nodes.toLocaleString() + ' positions in ' + (r.ms / 1000).toFixed(2) + 's';
+        }
+        render();
+        if (!checkGameOver()) {
+          setStatus(state.status === 'check' ? 'Check! Your move.' : 'Your move.');
+        }
+      }
+    };
+
+    // ---------- Drawing ----------
     function render() {
-      const b = engine.getBoard();
-      const status = engine.gameStatus();
+      const b = state.board;
 
-      // Find the king in check (if any) to give it a red glow
       let checkSq = -1;
-      if (status === 'check' || status === 'checkmate') {
-        checkSq = b.indexOf(engine.whiteToMove() ? 'K' : 'k');
+      if (state.status === 'check' || state.status === 'checkmate') {
+        checkSq = b.indexOf(state.whiteToMove ? 'K' : 'k');
       }
 
       boardEl.innerHTML = '';
@@ -230,7 +298,7 @@
         if (p !== '.') {
           const span = document.createElement('span');
           span.className = 'piece ' + (p === p.toUpperCase() ? 'white' : 'black');
-          span.textContent = GLYPHS[p.toLowerCase()] + '\uFE0E';
+          span.textContent = GLYPHS[p.toLowerCase()] + '︎';
           div.appendChild(span);
         }
 
@@ -252,28 +320,25 @@
       }
     }
 
+    // ---------- Clicking ----------
     function onSquareClick(sq) {
-      if (busy || gameOver) return;
+      if (busy || gameOver || !state) return;
 
-      // Clicked a highlighted target: make the move
+      // Clicked a highlighted target: send the move to the engine
       if (selected !== -1 && targets.includes(sq)) {
-        const san = engine.playMove(selected, sq, '');   // pawns auto-promote to a queen
-        console.log('you played', san);
-        lastMove = [selected, sq];
+        busy = true;
+        worker.postMessage({ type: 'playMove', from: selected, to: sq, promo: '' });
         selected = -1;
         targets = [];
-        render();
-        if (!checkGameOver()) engineTurn();
         return;
       }
 
-      // Clicked one of your own pieces: select it and show its moves
-      const p = engine.getBoard()[sq];
-      const isMine = p !== '.' && (p === p.toUpperCase()) === engine.whiteToMove();
+      // Clicked one of your own pieces: show its moves (instant, from the legal list)
+      const p = state.board[sq];
+      const isMine = p !== '.' && (p === p.toUpperCase()) === state.whiteToMove;
       if (isMine && sq !== selected) {
         selected = sq;
-        const t = engine.legalTargets(sq);
-        targets = t ? t.split(',').map(Number) : [];
+        targets = state.legal.filter(([from]) => from === sq).map(([, to]) => to);
       } else {
         selected = -1;
         targets = [];
@@ -283,34 +348,20 @@
 
     function engineTurn() {
       busy = true;
+      considered = [];
       setStatus(ENGINE_NAME + ' is thinking...');
-
-      // Small delay so the browser can redraw before the engine starts crunching
-      setTimeout(() => {
-        const raw = engine.engineMove(Number(depthEl.value), san => console.log('considering', san));
-        if (raw) {
-          const r = JSON.parse(raw);
-          lastMove = [r.from, r.to];
-          console.log('engine played', r);
-        }
-        busy = false;
-        render();
-        if (!checkGameOver()) {
-          setStatus(engine.gameStatus() === 'check' ? 'Check! Your move.' : 'Your move.');
-        }
-      }, 50);
+      tickerEl.innerHTML = '<span class="spinner"></span>thinking…';
+      worker.postMessage({ type: 'engineMove', depth: Number(depthEl.value) });
     }
 
     // Returns true if the game just ended
     function checkGameOver() {
-      const s = engine.gameStatus();
-      if (s === 'checkmate') {
+      if (state.status === 'checkmate') {
         gameOver = true;
-        // If it's White's turn and White is mated, the engine won
-        setStatus(engine.whiteToMove() ? LOSE_MESSAGE : WIN_MESSAGE);
+        setStatus(state.whiteToMove ? LOSE_MESSAGE : WIN_MESSAGE);
         return true;
       }
-      if (s === 'stalemate') {
+      if (state.status === 'stalemate') {
         gameOver = true;
         setStatus(DRAW_MESSAGE);
         return true;
@@ -318,24 +369,15 @@
       return false;
     }
 
-    function newGame() {
-      engine.newGame();
+    document.getElementById('newGame').onclick = () => {
+      if (busy) return;
       selected = -1;
       targets = [];
       lastMove = [];
-      busy = false;
       gameOver = false;
-      render();
-      setStatus('Your move.');
-    }
-
-    document.getElementById('newGame').onclick = () => { if (engine) newGame(); };
-
-    // Load the C++ engine, then start
-    createChessEngine().then(e => {
-      engine = e;
-      newGame();
-    });
+      busy = true;
+      worker.postMessage({ type: 'newGame' });
+    };
   </script>
 </body>
 </html>

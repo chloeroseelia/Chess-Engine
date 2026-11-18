@@ -1,4 +1,5 @@
 #include <emscripten/bind.h>
+#include <emscripten/val.h>
 #include <string>
 #include "engine.h"
 
@@ -58,6 +59,17 @@ std::string legalTargets(int from) {
     return out;
 }
 
+// NEW: every legal move at once, like "52-36,52-44,57-42,...".
+// The page keeps this list so clicking a piece is instant (no waiting on the worker).
+std::string allLegalMoves() {
+    std::string out;
+    for (const Move& m : generateMoves(game)) {
+        if (!out.empty()) out += ',';
+        out += std::to_string(m.from) + "-" + std::to_string(m.to);
+    }
+    return out;
+}
+
 std::string gameStatus() {
     bool inCheck = isInCheck(game.board, game.whiteToMove);
     bool canMove = !generateMoves(game).empty();
@@ -68,12 +80,13 @@ std::string gameStatus() {
 }
 
 EMSCRIPTEN_BINDINGS(chess) {
-    emscripten::function("newGame",      &newGame);
-    emscripten::function("getBoard",     &getBoard);
-    emscripten::function("whiteToMove",  &whiteToMove);
-    emscripten::function("evaluation",   &evaluation);
-    emscripten::function("playMove",     &playMove);
-    emscripten::function("engineMove",   &engineMove);
-    emscripten::function("legalTargets", &legalTargets);
-    emscripten::function("gameStatus",   &gameStatus);
+    emscripten::function("newGame",       &newGame);
+    emscripten::function("getBoard",      &getBoard);
+    emscripten::function("whiteToMove",   &whiteToMove);
+    emscripten::function("evaluation",    &evaluation);
+    emscripten::function("playMove",      &playMove);
+    emscripten::function("engineMove",    &engineMove);
+    emscripten::function("legalTargets",  &legalTargets);
+    emscripten::function("allLegalMoves", &allLegalMoves);
+    emscripten::function("gameStatus",    &gameStatus);
 }
