@@ -393,6 +393,102 @@
       to   { opacity: 1; filter: blur(0); }
     }
 
+    /* ---------- Editions ---------- */
+    .edition { display: flex; flex-direction: column; gap: 12px; }
+    .edition[hidden] { display: none; }
+
+    /* The special edition swings in like a page coming off the press */
+    .extra { animation: pressIn 700ms cubic-bezier(0.2, 0.8, 0.2, 1); transform-origin: top center; }
+    @keyframes pressIn {
+      from { opacity: 0; transform: perspective(1200px) rotateX(-14deg) translateY(-24px); }
+      to   { opacity: 1; transform: none; }
+    }
+
+    .extra-banner {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 18px;
+      padding: 8px 0;
+      background: var(--red);
+      color: var(--paper-light);
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: 26px;
+      font-weight: 900;
+      letter-spacing: 8px;
+      text-transform: uppercase;
+    }
+    .extra-banner span:first-child, .extra-banner span:last-child { font-size: 18px; letter-spacing: 0; }
+
+    .extra-head {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      padding: 10px 0 12px;
+      border-bottom: 1px solid var(--ink);
+      text-align: center;
+    }
+    .extra-headline {
+      margin: 0;
+      max-width: 1000px;
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: clamp(38px, 6.5vw, 78px);
+      font-weight: 900;
+      line-height: 0.95;
+      letter-spacing: -1px;
+      text-transform: uppercase;
+    }
+
+    .statement {
+      margin: 0;
+      font-family: 'Instrument Serif', Georgia, serif;
+      font-size: 25px;
+      font-style: italic;
+      line-height: 1.15;
+    }
+
+    .tally-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 3px 0;
+      border-bottom: 1px dotted #8c8c8c;
+      font-size: 14px;
+    }
+    .tally-row b { font-weight: 700; text-align: right; }
+
+    .analysis-item {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      padding-top: 8px;
+      border-top: 1px solid var(--ink);
+    }
+    .analysis-move {
+      margin: 0;
+      font-family: 'Instrument Serif', Georgia, serif;
+      font-size: 28px;
+      line-height: 1;
+    }
+    .chart-key { font-weight: 600; color: var(--faint); letter-spacing: 1px; }
+
+    .board.final .square { cursor: default; }
+
+    .text-button {
+      border: none;
+      padding: 4px;
+      background: none;
+      font-family: 'Source Serif 4', Georgia, serif;
+      font-size: 14px;
+      font-style: italic;
+      font-weight: 400;
+      letter-spacing: 0;
+      text-transform: none;
+      text-decoration: underline;
+    }
+    .text-button:hover { box-shadow: none; color: var(--red); }
+
     /* ---------- Footer ---------- */
     .footer {
       margin-top: auto;
@@ -461,6 +557,9 @@
 
     <p class="motto">All the moves fit to print</p>
 
+    <!-- ===================== THE FRONT PAGE (while playing) ===================== -->
+    <div id="front" class="edition">
+
     <div class="headline-block">
       <p class="label kicker" id="kicker">First Edition</p>
       <h2 class="headline" id="headline">The Board Is Set</h2>
@@ -512,6 +611,7 @@
               <option value="4">Hard</option>
             </select>
             <button class="danger" id="resignBtn">Resign</button>
+            <button class="primary" id="toExtra" hidden>Read the EXTRA! Edition</button>
           </div>
         </figure>
       </div>
@@ -530,6 +630,60 @@
             <p class="label obit-count" id="obitCount"></p>
           </div>
           <div class="obits" id="obits"></div>
+        </div>
+      </div>
+    </div>
+
+    </div><!-- /front -->
+
+    <!-- ===================== THE EXTRA! EDITION (after the game) ===================== -->
+    <div id="extra" class="edition extra" hidden>
+      <div class="extra-banner"><span>★</span><span>Extra! Extra!</span><span>★</span></div>
+
+      <div class="extra-head">
+        <h2 class="extra-headline" id="xHeadline"></h2>
+        <p class="deck" id="xDeck"></p>
+      </div>
+
+      <div class="columns">
+        <div class="col-left">
+          <div style="display: flex; flex-direction: column; gap: 8px;">
+            <p class="label">Statement from the Engine</p>
+            <p class="statement" id="xStatement"></p>
+          </div>
+          <div class="boxed">
+            <p class="label">The Final Tally</p>
+            <div id="xTally"></div>
+          </div>
+          <p class="placeholder" id="xObitNote"></p>
+        </div>
+
+        <div class="col-center">
+          <figure>
+            <div class="board final" id="xBoard"></div>
+            <figcaption id="xCaption"></figcaption>
+            <div class="controls">
+              <button class="primary" id="xNewGame">Tomorrow’s Edition: New Game</button>
+              <button class="danger" id="xRematch">Demand a Rematch on Hard</button>
+            </div>
+            <button class="text-button" id="xReview">← Look back at the front page</button>
+          </figure>
+        </div>
+
+        <div class="col-right">
+          <p class="label">The Analysis</p>
+          <div id="xChart"></div>
+          <p class="placeholder" style="font-size: 12px;">The engine’s evaluation after each of its moves. Above the dashed line, White is ahead.</p>
+          <div class="analysis-item">
+            <p class="label">Your Best Move <span class="chart-key">(white circle)</span></p>
+            <p class="analysis-move" id="xBest">—</p>
+            <p class="body-text" style="font-size: 13px;" id="xBestText"></p>
+          </div>
+          <div class="analysis-item">
+            <p class="label" style="color: var(--red);">Your Biggest Blunder <span class="chart-key">(red dot)</span></p>
+            <p class="analysis-move" id="xBlunder">—</p>
+            <p class="body-text" style="font-size: 13px;" id="xBlunderText"></p>
+          </div>
         </div>
       </div>
     </div>
@@ -570,6 +724,7 @@
     let gameOver   = false;
     let history    = [];     // every move played, in notation
     let considered = [];
+    let scores     = [0];    // engine's evaluation after each of its moves (White's view). Starts even.
 
     // ---------- Messages from the engine ----------
     worker.onmessage = (event) => {
@@ -618,6 +773,7 @@
           $('hood').textContent = 'UNDER THE HOOD · alpha-beta search · depth ' + $('depth').value + ' · ' +
             r.nodes.toLocaleString() + ' positions in ' + (r.ms / 1000).toFixed(2) + ' s';
         }
+        if (r) scores.push(state.evaluation);
         render();
         if (ev) publishStory(ev);
         updateEval();
@@ -1075,34 +1231,207 @@
       worker.postMessage({ type: 'engineMove', depth: Number($('depth').value) });
     }
 
+    // Returns true if the game just ended (and rolls out the EXTRA! edition)
     function checkGameOver() {
       if (state.status === 'checkmate') {
-        gameOver = true;
-        const engineWon = state.whiteToMove;
-        $('kicker').textContent = 'Final';
-        $('headline').textContent = engineWon ? 'Machine Triumphs' : 'Human Defeats Machine';
-        $('deck').textContent = engineWon ? LOSE_MESSAGE : WIN_MESSAGE;
-        setTicker('GAME OVER', 'checkmate', '');
-        render();
+        showExtra(state.whiteToMove ? 'engineMate' : 'humanMate');
         return true;
       }
       if (state.status === 'stalemate') {
-        gameOver = true;
-        $('kicker').textContent = 'Final';
-        $('headline').textContent = 'Stalemate';
-        $('deck').textContent = DRAW_MESSAGE;
-        setTicker('GAME OVER', 'stalemate', '');
-        render();
+        showExtra('stalemate');
         return true;
       }
       return false;
     }
 
-    $('newGameBtn').onclick = () => {
+    // =====================================================
+    //  THE EXTRA! EDITION
+    // =====================================================
+
+    function showExtra(result) {
+      gameOver = true;
+      busy = false;
+      const moves = Math.ceil(history.length / 2);
+      const lastSan = history[history.length - 1] || '';
+
+      // The front page gets a "Final" headline too, for anyone who looks back
+      const front = {
+        humanMate:  ['Human Defeats Machine', WIN_MESSAGE],
+        engineMate: ['Machine Triumphs', LOSE_MESSAGE],
+        stalemate:  ['Stalemate', DRAW_MESSAGE],
+        resign:     ['Human Concedes', 'The engine accepts graciously.']
+      }[result];
+      $('kicker').textContent = 'Final';
+      $('headline').textContent = front[0];
+      $('deck').textContent = front[1];
+      setTicker('GAME OVER', result === 'resign' ? 'white resigns' : result === 'stalemate' ? 'stalemate' : 'checkmate', '');
+      render();
+
+      // ---- Headline, deck and statement ----
+      const copy = {
+        humanMate: {
+          headline: `Human Defeats Machine in ${moves} Moves`,
+          deck: WIN_MESSAGE + ' Editors “deeply humbled.”',
+          statement: '“We are deeply humbled. We would like a rematch. Hard mode is available at your convenience.”'
+        },
+        engineMate: {
+          headline: `Machine Triumphs in ${moves} Moves`,
+          deck: LOSE_MESSAGE,
+          statement: '“We thank the challenger for a spirited game. We would also like it noted that we won.”'
+        },
+        stalemate: {
+          headline: 'Stalemate! Neither Side Prevails',
+          deck: DRAW_MESSAGE,
+          statement: '“A draw. The editors consider this a moral victory. For both of us, we suppose.”'
+        },
+        resign: {
+          headline: `Challenger Resigns After ${moves} Move${moves === 1 ? '' : 's'}`,
+          deck: 'The engine accepts graciously and extends a handshake.',
+          statement: '“A wise decision. We look forward to the rematch, and to winning that one too.”'
+        }
+      }[result];
+      $('xHeadline').textContent = copy.headline;
+      $('xDeck').textContent = copy.deck;
+      $('xStatement').textContent = copy.statement;
+
+      // ---- Final position ----
+      let checkSq = -1;
+      if (state.status === 'checkmate') checkSq = state.board.indexOf(state.whiteToMove ? 'K' : 'k');
+      drawStaticBoard($('xBoard'), state.board, lastMove, checkSq);
+      $('xCaption').textContent = lastSan
+        ? `The Final Position. ${moves}. ${history.length % 2 === 0 ? '… ' : ''}${lastSan}` +
+          (state.status === 'checkmate' ? ': checkmate.' : '.')
+        : 'The Final Position. No moves were played.';
+
+      // ---- Tally ----
+      const youTook = obituaries.filter(o => !isWhitePiece(o.piece)).length;
+      const engineTook = obituaries.filter(o => isWhitePiece(o.piece)).length;
+      let peak = 0, peakMove = 0;
+      scores.forEach((s, i) => { if (-s > peak) { peak = -s; peakMove = i; } });
+      const tally = [
+        ['Moves played', String(moves)],
+        ['Pieces you captured', String(youTook)],
+        ['Pieces the engine captured', String(engineTook)],
+        ['Engine’s peak confidence', peak > 50 ? (peak > 50000 ? `forced mate (move ${peakMove})` : `+${(peak / 100).toFixed(1)} on move ${peakMove}`) : 'never ahead'],
+        ['Difficulty', $('depth').selectedOptions[0].textContent]
+      ];
+      $('xTally').innerHTML = '';
+      for (const [label, value] of tally) {
+        const row = document.createElement('div');
+        row.className = 'tally-row';
+        row.innerHTML = '<span></span><b></b>';
+        row.children[0].textContent = label;
+        row.children[1].textContent = value;
+        $('xTally').appendChild(row);
+      }
+      const fallen = obituaries.length;
+      $('xObitNote').textContent = fallen
+        ? `Obituaries for all ${fallen} fallen piece${fallen === 1 ? '' : 's'} appear in the front-page edition.`
+        : 'No pieces were harmed in the making of this game.';
+
+      // ---- Analysis ----
+      renderAnalysis(result);
+
+      // Give the final move a moment to land, then roll out the special edition
+      setTimeout(() => {
+        $('front').hidden = true;
+        $('extra').hidden = false;
+        $('toExtra').hidden = false;
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }, result === 'resign' ? 150 : 1400);
+    }
+
+    // A non-clickable board for the special edition
+    function drawStaticBoard(el, board, highlight, checkSq) {
+      el.innerHTML = '';
+      for (let sq = 0; sq < 64; sq++) {
+        const row = Math.floor(sq / 8), col = sq % 8;
+        const div = document.createElement('div');
+        div.className = 'square ' + ((row + col) % 2 === 0 ? 'light' : 'dark');
+        if (highlight.includes(sq)) div.classList.add('last');
+        if (sq === checkSq) div.classList.add('check');
+        let html = board[sq] !== '.' ? pieceSVG(board[sq]) : '';
+        if (col === 0) html += `<span class="coord rank">${8 - row}</span>`;
+        if (row === 7) html += `<span class="coord file">${'abcdefgh'[col]}</span>`;
+        div.innerHTML = html;
+        el.appendChild(div);
+      }
+    }
+
+    // Best move = biggest swing toward White; blunder = biggest swing toward the engine
+    function renderAnalysis(result) {
+      const clamp = v => Math.max(-1000, Math.min(1000, v));
+      const yourMoves = history.filter((_, i) => i % 2 === 0);
+      const swings = [];
+      yourMoves.forEach((san, i) => {
+        let swing;
+        if (scores[i + 1] !== undefined) swing = clamp(scores[i + 1]) - clamp(scores[i]);
+        else if (result === 'humanMate' && i === yourMoves.length - 1) swing = Infinity;   // the mating move!
+        else return;
+        swings.push({ n: i + 1, san, swing });
+      });
+
+      // Chart
+      const pts = scores.map((s, i) => {
+        const x = 10 + i * (250 / Math.max(1, scores.length - 1));
+        const y = 67 - (clamp(s) / 1000) * 56;
+        return [x, y];
+      });
+      let best = null, worst = null;
+      for (const s of swings) {
+        if (!best || s.swing > best.swing) best = s;
+        if (!worst || s.swing < worst.swing) worst = s;
+      }
+      const dot = (s, fill) => {
+        if (!s) return '';
+        const idx = Math.min(s.n, pts.length - 1);
+        const [x, y] = pts[idx];
+        return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="5" fill="${fill}" stroke="#1a1a1a" stroke-width="1.8"/>`;
+      };
+      $('xChart').innerHTML = `
+        <svg role="img" aria-label="Evaluation over the game" width="270" height="134" viewBox="0 0 270 134" style="max-width: 100%;">
+          <rect x="0.75" y="0.75" width="268.5" height="132.5" fill="#fbf8f1" stroke="#1a1a1a" stroke-width="1.5"/>
+          <line x1="8" y1="67" x2="262" y2="67" stroke="#8c8c8c" stroke-dasharray="3 3"/>
+          ${pts.length > 1 ? `<polyline points="${pts.map(p => p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' ')}" fill="none" stroke="#1a1a1a" stroke-width="2" stroke-linejoin="round"/>` : ''}
+          ${dot(best, '#fbf8f1')}
+          ${worst && worst.swing < -50 ? dot(worst, '#b3261e') : ''}
+          <text x="12" y="16" font-family="Inter, sans-serif" font-size="9" font-weight="700" fill="#3a3a3a">WHITE AHEAD ↑</text>
+          <text x="12" y="126" font-family="Inter, sans-serif" font-size="9" font-weight="700" fill="#3a3a3a">BLACK AHEAD ↓</text>
+        </svg>`;
+
+      // Write-ups
+      if (!best) {
+        $('xBest').textContent = '—';
+        $('xBestText').textContent = 'Too few moves to analyze. Play a longer game for a full review.';
+        $('xBlunder').textContent = '—';
+        $('xBlunderText').textContent = '';
+        return;
+      }
+      $('xBest').textContent = `${best.n}. ${best.san}${best.swing === Infinity ? '' : '!'}`;
+      $('xBestText').textContent = best.swing === Infinity
+        ? 'The finishing blow. Nothing beats checkmate.'
+        : best.swing > 30
+          ? `Swung the evaluation ${(best.swing / 100).toFixed(1)} pawns in White’s favor. The engine did not see it coming.`
+          : 'A solid, steady move. The engine found nothing to punish.';
+
+      if (worst && worst.swing < -50 && worst !== best) {
+        $('xBlunder').textContent = `${worst.n}. ${worst.san}?`;
+        $('xBlunderText').textContent = `Cost about ${(-worst.swing / 100).toFixed(1)} pawns. The engine noticed.`;
+      } else {
+        $('xBlunder').textContent = 'None!';
+        $('xBlunderText').textContent = 'No real blunders this game. The editors are impressed.';
+      }
+    }
+
+    // ---------- Buttons ----------
+    function startNewGame() {
       if (busy) return;
-      selected = -1; targets = []; lastMove = []; history = [];
+      selected = -1; targets = []; lastMove = []; history = []; scores = [0];
       gameOver = false;
       busy = true;
+      $('extra').hidden = true;
+      $('front').hidden = false;
+      $('toExtra').hidden = true;
       $('kicker').textContent = 'First Edition';
       $('headline').textContent = 'The Board Is Set';
       $('deck').textContent = 'You play White. Click a piece, then click where it should go.';
@@ -1110,16 +1439,31 @@
       $('evalBlack').style.width = '50%';
       $('evalText').textContent = 'Even.';
       worker.postMessage({ type: 'newGame' });
+    }
+
+    $('newGameBtn').onclick = startNewGame;
+    $('xNewGame').onclick = startNewGame;
+
+    $('xRematch').onclick = () => {
+      $('depth').value = '4';   // Hard
+      startNewGame();
     };
 
     $('resignBtn').onclick = () => {
       if (busy || gameOver || !state) return;
-      gameOver = true;
-      $('kicker').textContent = 'Final';
-      $('headline').textContent = 'Human Concedes';
-      $('deck').textContent = 'The engine accepts graciously. A full special edition arrives in Step 5.';
-      setTicker('GAME OVER', 'white resigns', '');
-      render();
+      showExtra('resign');
+    };
+
+    // Flip between the final front page and the special edition
+    $('xReview').onclick = () => {
+      $('extra').hidden = true;
+      $('front').hidden = false;
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+    $('toExtra').onclick = () => {
+      $('front').hidden = true;
+      $('extra').hidden = false;
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     };
   </script>
 </body>
