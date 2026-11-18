@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Engine test</title>
+</head>
+<body style="font-family: monospace; background: #222; color: #eee; padding: 20px;">
+  <h2>Engine test</h2>
+  <pre id="board" style="font-size: 20px;"></pre>
+  <input id="move" placeholder="e2e4">
+  <button id="go">Play</button>
+  <p id="status">Loading engine...</p>
+
+  <script src="chess.js"></script>
+  <script>
+    createChessEngine().then(engine => {
+      const boardEl  = document.getElementById('board');
+      const statusEl = document.getElementById('status');
+
+      function draw() {
+        const b = engine.getBoard();
+        let out = '';
+        for (let r = 0; r < 8; r++) {
+          out += (8 - r) + '  ';
+          for (let f = 0; f < 8; f++) out += b[r * 8 + f] + ' ';
+          out += '\n';
+        }
+        out += '\n   a b c d e f g h';
+        boardEl.textContent = out;
+      }
+
+      // "e2" -> 52, same math as your C++ squareIndex
+      function sq(name) {
+        return (8 - Number(name[1])) * 8 + (name.charCodeAt(0) - 97);
+      }
+
+      draw();
+      statusEl.textContent = 'Engine loaded. Your move!';
+
+      document.getElementById('go').onclick = () => {
+        const mv = document.getElementById('move').value.trim();
+        if (mv.length < 4 || !engine.playMove(sq(mv.slice(0, 2)), sq(mv.slice(2, 4)), mv.slice(4))) {
+          statusEl.textContent = 'Illegal move, try again.';
+          return;
+        }
+        draw();
+        if (engine.gameStatus() === 'checkmate') { statusEl.textContent = 'Checkmate, you win!'; return; }
+
+        statusEl.textContent = 'Engine is thinking...';
+        setTimeout(() => {
+          const reply = engine.engineMove(3);
+          draw();
+          const s = engine.gameStatus();
+          if (s === 'checkmate')      statusEl.textContent = 'Checkmate, the engine wins!';
+          else if (s === 'stalemate') statusEl.textContent = 'Stalemate, draw.';
+          else statusEl.textContent = 'Engine played ' + reply + (s === 'check' ? ', check!' : '');
+        }, 50);
+      };
+    });
+  </script>
+</body>
+</html>

@@ -1,8 +1,0 @@
-================================================================================
-Linker Errors
-Generated: 2026-11-18T05:57:47.752Z
-Total Errors: 1
-================================================================================
-
-[LNK1168] (MSVC)
-cannot open C:\Users\chloe\Downloads\Chess engine\build\Debug\engine.exe for writing [C:\Users\chloe\Downloads\Chess engine\build\engine.vcxproj]

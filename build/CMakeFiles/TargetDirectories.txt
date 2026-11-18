@@ -1,4 +1,0 @@
-C:/Users/chloe/Downloads/Chess engine/build/CMakeFiles/chesscore.dir
-C:/Users/chloe/Downloads/Chess engine/build/CMakeFiles/engine.dir
-C:/Users/chloe/Downloads/Chess engine/build/CMakeFiles/ALL_BUILD.dir
-C:/Users/chloe/Downloads/Chess engine/build/CMakeFiles/ZERO_CHECK.dir
