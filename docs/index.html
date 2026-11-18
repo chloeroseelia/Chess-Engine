@@ -41,7 +41,9 @@
       background: #e9e2d3;
       color: var(--ink);
       font-family: 'Source Serif 4', Georgia, serif;
+      font-variant-numeric: lining-nums;   /* normal-looking numbers, so "e1" doesn't read as "el" */
     }
+    h1, h2, h3, p, span, b, button, select { font-variant-numeric: lining-nums; }
 
     .page {
       max-width: 1200px;
