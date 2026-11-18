@@ -2,6 +2,7 @@
 
 #include <string>
 #include <vector>
+#include <functional>
 
 // ===================== DATA =====================
 
@@ -38,3 +39,19 @@ bool isFullyLegal(const Position& pos, const Move& m);
 Position          makeMove(const Position& pos, const Move& m);
 std::vector<Move> generateMoves(const Position& pos);
 Move              findBestMove(const Position& pos, int depth);
+
+// ===================== NEW: richer engine info =====================
+
+struct SearchResult {
+    Move      best;
+    int       score;   // centipawns, from the side-to-move's point of view
+    long long nodes;   // how many positions were searched
+};
+
+// Like findBestMove, but also reports the score, the node count, and
+// (optionally) calls onConsider for every move it starts examining.
+SearchResult searchBestMove(const Position& pos, int depth,
+                            const std::function<void(const Move&)>& onConsider = nullptr);
+
+std::string moveToSAN(const Position& pos, const Move& m);   // e.g. "Nxf7+", "O-O", "e8=Q#"
+int         staticEval(const Position& pos);                 // centipawns, White's point of view

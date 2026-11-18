@@ -262,7 +262,11 @@ static int evaluate(const std::string& board) {
 static const int INF  = 1000000;
 static const int MATE = 100000;
 
+static long long g_nodes = 0;   // NEW: counts every position the search visits
+
 static int search(const Position& pos, int depth, int alpha, int beta) {
+    g_nodes++;
+
     if (depth == 0) {
         int score = evaluate(pos.board);
         return pos.whiteToMove ? score : -score;
@@ -282,17 +286,80 @@ static int search(const Position& pos, int depth, int alpha, int beta) {
     return alpha;
 }
 
-Move findBestMove(const Position& pos, int depth) {
+// NEW: like findBestMove, but also reports score, node count, and progress
+SearchResult searchBestMove(const Position& pos, int depth,
+                            const std::function<void(const Move&)>& onConsider) {
+    g_nodes = 0;
     std::vector<Move> moves = generateMoves(pos);
     Move best = moves[0];
     int bestScore = -INF;
 
     for (const Move& m : moves) {
+        if (onConsider) onConsider(m);   // tell whoever's listening what we're looking at
         int score = -search(makeMove(pos, m), depth - 1, -INF, -bestScore);
         if (score > bestScore) {
             bestScore = score;
             best = m;
         }
     }
-    return best;
+    return {best, bestScore, g_nodes};
+}
+
+Move findBestMove(const Position& pos, int depth) {
+    return searchBestMove(pos, depth).best;
+}
+
+int staticEval(const Position& pos) {
+    return evaluate(pos.board);
+}
+
+// NEW: Standard Algebraic Notation, how moves are written in books and newspapers
+std::string moveToSAN(const Position& pos, const Move& m) {
+    char piece = pos.board[m.from];
+    char kind  = std::tolower(piece);
+    std::string san;
+
+    if (kind == 'k' && std::abs(m.to - m.from) == 2) {
+        san = (m.to > m.from) ? "O-O" : "O-O-O";              // castling
+    } else {
+        bool capture = pos.board[m.to] != '.' || (kind == 'p' && m.to == pos.epSquare);
+
+        if (kind == 'p') {
+            if (capture) { san += squareName(m.from)[0]; san += 'x'; }   // "exd5"
+            san += squareName(m.to);
+            int toRow = m.to / 8;
+            if (toRow == 0 || toRow == 7) {                                 // "e8=Q"
+                san += '=';
+                san += (char)std::toupper(m.promo ? m.promo : 'q');
+            }
+        } else {
+            san += (char)std::toupper(kind);
+
+            // If two identical pieces can reach the same square, say which one ("Nbd2")
+            bool ambiguous = false, sameFile = false, sameRank = false;
+            for (const Move& other : generateMoves(pos)) {
+                if (other.to == m.to && other.from != m.from && pos.board[other.from] == piece) {
+                    ambiguous = true;
+                    if (other.from % 8 == m.from % 8) sameFile = true;
+                    if (other.from / 8 == m.from / 8) sameRank = true;
+                }
+            }
+            if (ambiguous) {
+                std::string fromName = squareName(m.from);
+                if (!sameFile)      san += fromName[0];
+                else if (!sameRank) san += fromName[1];
+                else                san += fromName;
+            }
+
+            if (capture) san += 'x';
+            san += squareName(m.to);
+        }
+    }
+
+    // Check (+) or checkmate (#)
+    Position next = makeMove(pos, m);
+    if (isInCheck(next.board, next.whiteToMove)) {
+        san += generateMoves(next).empty() ? '#' : '+';
+    }
+    return san;
 }

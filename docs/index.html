@@ -175,8 +175,8 @@
     // ============ PERSONALIZE THESE ============
     const ENGINE_NAME  = 'Chess Engine';                      // ← your engine's name!
     const WIN_MESSAGE  = 'Checkmate! You beat me. ❤️';         // shown when HE wins
-    const LOSE_MESSAGE = 'Checkmate. I win this time 😏';      // shown when the engine wins
-    const DRAW_MESSAGE = 'Stalemate. We tie.';
+    const LOSE_MESSAGE = 'Checkmate. gotcha!I win this time 😏';      // shown when the engine wins
+    const DRAW_MESSAGE = 'Stalemate. I guess We tied.';
     // ===========================================
 
     // Same glyph for both colors; CSS makes one white, one black.
@@ -257,7 +257,8 @@
 
       // Clicked a highlighted target: make the move
       if (selected !== -1 && targets.includes(sq)) {
-        engine.playMove(selected, sq, '');   // pawns auto-promote to a queen
+        const san = engine.playMove(selected, sq, '');   // pawns auto-promote to a queen
+        console.log('you played', san);
         lastMove = [selected, sq];
         selected = -1;
         targets = [];
@@ -286,8 +287,12 @@
 
       // Small delay so the browser can redraw before the engine starts crunching
       setTimeout(() => {
-        const mv = engine.engineMove(Number(depthEl.value));
-        if (mv) lastMove = [sqIndex(mv.slice(0, 2)), sqIndex(mv.slice(2, 4))];
+        const raw = engine.engineMove(Number(depthEl.value), san => console.log('considering', san));
+        if (raw) {
+          const r = JSON.parse(raw);
+          lastMove = [r.from, r.to];
+          console.log('engine played', r);
+        }
         busy = false;
         render();
         if (!checkGameOver()) {

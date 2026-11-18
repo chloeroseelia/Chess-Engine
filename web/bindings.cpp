@@ -2,40 +2,51 @@
 #include <string>
 #include "engine.h"
 
-// The one game the web page is playing
+using emscripten::val;
+
 static Position game = startingPosition();
+static int lastScore = 0;   // engine's latest evaluation, White's point of view (centipawns)
 
 void newGame() {
     game = startingPosition();
+    lastScore = 0;
 }
 
-std::string getBoard() {
-    return game.board;
-}
+std::string getBoard()    { return game.board; }
+bool        whiteToMove() { return game.whiteToMove; }
+int         evaluation()  { return lastScore; }
 
-bool whiteToMove() {
-    return game.whiteToMove;
-}
-
-// Tries a move. Returns true if it was legal (and plays it).
-bool playMove(int from, int to, std::string promo) {
-    if (from < 0 || from > 63 || to < 0 || to > 63) return false;
+// Plays a move. Returns it in notation (like "Nxf7+"), or "" if it's illegal.
+std::string playMove(int from, int to, std::string promo) {
+    if (from < 0 || from > 63 || to < 0 || to > 63) return "";
     Move m = {from, to, promo.empty() ? (char)0 : promo[0]};
-    if (!isFullyLegal(game, m)) return false;
+    if (!isFullyLegal(game, m)) return "";
+    std::string san = moveToSAN(game, m);
     game = makeMove(game, m);
-    return true;
+    return san;
 }
 
-// The engine thinks and plays. Returns its move like "e7e5".
-std::string engineMove(int depth) {
+// The engine thinks and plays. onConsider(san) is called for each move it examines.
+// Returns JSON like: {"san":"Nf6","from":6,"to":21,"score":-35,"nodes":12408}
+std::string engineMove(int depth, val onConsider) {
     if (generateMoves(game).empty()) return "";
-    Move m = findBestMove(game, depth);
-    game = makeMove(game, m);
-    return squareName(m.from) + squareName(m.to);
+
+    Position before = game;
+    SearchResult r = searchBestMove(game, depth, [&](const Move& m) {
+        onConsider(moveToSAN(before, m));
+    });
+
+    std::string san = moveToSAN(before, r.best);
+    lastScore = before.whiteToMove ? r.score : -r.score;
+    game = makeMove(game, r.best);
+
+    return "{\"san\":\"" + san + "\","
+           "\"from\":"  + std::to_string(r.best.from) + ","
+           "\"to\":"    + std::to_string(r.best.to)   + ","
+           "\"score\":" + std::to_string(lastScore)   + ","
+           "\"nodes\":" + std::to_string(r.nodes)     + "}";
 }
 
-// Where can the piece on this square go? Returns "36,44" style list.
-// (We'll use this to highlight moves on the board.)
 std::string legalTargets(int from) {
     std::string out;
     for (const Move& m : generateMoves(game)) {
@@ -56,11 +67,11 @@ std::string gameStatus() {
     return "playing";
 }
 
-// The "bridge": these names become callable from JavaScript
 EMSCRIPTEN_BINDINGS(chess) {
     emscripten::function("newGame",      &newGame);
     emscripten::function("getBoard",     &getBoard);
     emscripten::function("whiteToMove",  &whiteToMove);
+    emscripten::function("evaluation",   &evaluation);
     emscripten::function("playMove",     &playMove);
     emscripten::function("engineMove",   &engineMove);
     emscripten::function("legalTargets", &legalTargets);
