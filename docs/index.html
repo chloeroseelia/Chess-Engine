@@ -1,61 +1,335 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>Engine test</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Chess Engine</title>
+  <style>
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #1e1e24;
+      color: #eee;
+      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    }
+
+    .app {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+      padding: 20px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 28px;
+      letter-spacing: 1px;
+    }
+
+    .subtitle {
+      margin: -10px 0 0;
+      color: #999;
+      font-size: 14px;
+    }
+
+    /* ---------- Board ---------- */
+    .board {
+      --size: min(90vw, 560px);
+      width: var(--size);
+      height: var(--size);
+      display: grid;
+      grid-template-columns: repeat(8, 1fr);
+      grid-template-rows: repeat(8, 1fr);
+      border-radius: 6px;
+      overflow: hidden;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+      user-select: none;
+    }
+
+    .square {
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+    }
+    .light { background: #f0d9b5; }
+    .dark  { background: #b58863; }
+
+    .square.last.light { background: #f6eb72; }
+    .square.last.dark  { background: #dcc34b; }
+    .square.selected   { background: #8fbcdb !important; }
+    .square.check      { background: radial-gradient(circle, #ff4d4d 0%, #e00 40%, transparent 75%) !important; }
+
+    /* Dot for a legal move onto an empty square */
+    .square.target::after {
+      content: "";
+      width: 28%;
+      height: 28%;
+      border-radius: 50%;
+      background: rgba(0, 0, 0, 0.22);
+    }
+    /* Ring for a legal capture */
+    .square.capture::after {
+      content: "";
+      position: absolute;
+      inset: 4%;
+      border-radius: 50%;
+      border: 5px solid rgba(0, 0, 0, 0.22);
+    }
+
+    .piece {
+      font-size: calc(var(--size) / 8 * 0.78);
+      line-height: 1;
+      font-family: "Segoe UI Symbol", "DejaVu Sans", "Noto Sans Symbols 2", serif;
+      pointer-events: none;
+    }
+    .piece.white {
+      color: #fff;
+      text-shadow: 0 0 2px #000, 0 0 2px #000, 0 2px 3px rgba(0, 0, 0, 0.6);
+    }
+    .piece.black {
+      color: #1a1a1a;
+      text-shadow: 0 0 1px #fff, 0 2px 3px rgba(0, 0, 0, 0.4);
+    }
+
+    /* Coordinates in the corners of edge squares */
+    .coord {
+      position: absolute;
+      font-size: 11px;
+      font-weight: 600;
+      pointer-events: none;
+    }
+    .coord.rank { top: 3px; left: 4px; }
+    .coord.file { bottom: 2px; right: 4px; }
+    .light .coord { color: #b58863; }
+    .dark  .coord { color: #f0d9b5; }
+
+    /* ---------- Controls ---------- */
+    .status {
+      min-height: 24px;
+      font-size: 18px;
+      font-weight: 500;
+    }
+
+    .controls {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+    }
+
+    button, select {
+      font: inherit;
+      font-size: 15px;
+      padding: 8px 16px;
+      border-radius: 6px;
+      border: none;
+      cursor: pointer;
+    }
+    button {
+      background: #6a9955;
+      color: white;
+      font-weight: 600;
+    }
+    button:hover { background: #7cb365; }
+    select {
+      background: #2d2d35;
+      color: #eee;
+    }
+
+    .footer {
+      color: #777;
+      font-size: 13px;
+    }
+  </style>
 </head>
-<body style="font-family: monospace; background: #222; color: #eee; padding: 20px;">
-  <h2>Engine test</h2>
-  <pre id="board" style="font-size: 20px;"></pre>
-  <input id="move" placeholder="e2e4">
-  <button id="go">Play</button>
-  <p id="status">Loading engine...</p>
+<body>
+  <div class="app">
+    <h1 id="title">Chess Engine</h1>
+    <p class="subtitle">Written in C++ · compiled to WebAssembly</p>
+
+    <div class="board" id="board"></div>
+
+    <div class="status" id="status">Loading engine...</div>
+
+    <div class="controls">
+      <button id="newGame">New Game</button>
+      <select id="depth">
+        <option value="2">Easy</option>
+        <option value="3" selected>Medium</option>
+        <option value="4">Hard</option>
+      </select>
+    </div>
+
+    <div class="footer">You play White. Click a piece, then click where to move it.</div>
+  </div>
 
   <script src="chess.js"></script>
   <script>
-    createChessEngine().then(engine => {
-      const boardEl  = document.getElementById('board');
-      const statusEl = document.getElementById('status');
+    // ============ PERSONALIZE THESE ============
+    const ENGINE_NAME  = 'Chess Engine';                      // ← your engine's name!
+    const WIN_MESSAGE  = 'Checkmate! You beat me. ❤️';         // shown when HE wins
+    const LOSE_MESSAGE = 'Checkmate. I win this time 😏';      // shown when the engine wins
+    const DRAW_MESSAGE = 'Stalemate. We tie.';
+    // ===========================================
 
-      function draw() {
-        const b = engine.getBoard();
-        let out = '';
-        for (let r = 0; r < 8; r++) {
-          out += (8 - r) + '  ';
-          for (let f = 0; f < 8; f++) out += b[r * 8 + f] + ' ';
-          out += '\n';
-        }
-        out += '\n   a b c d e f g h';
-        boardEl.textContent = out;
+    // Same glyph for both colors; CSS makes one white, one black.
+    // \uFE0E forces text style (not emoji) on Windows.
+    const GLYPHS = { k: '♚', q: '♛', r: '♜', b: '♝', n: '♞', p: '♟' };
+
+    const boardEl  = document.getElementById('board');
+    const statusEl = document.getElementById('status');
+    const depthEl  = document.getElementById('depth');
+
+    document.getElementById('title').textContent = ENGINE_NAME;
+    document.title = ENGINE_NAME;
+
+    let engine;
+    let selected = -1;      // square the player clicked, or -1
+    let targets  = [];      // legal destination squares for the selected piece
+    let lastMove = [];      // [from, to] of the last move, for highlighting
+    let busy     = false;   // true while the engine is thinking
+    let gameOver = false;
+
+    function setStatus(text) { statusEl.textContent = text; }
+
+    // "e2" -> 52, same math as your C++ squareIndex
+    function sqIndex(name) {
+      return (8 - Number(name[1])) * 8 + (name.charCodeAt(0) - 97);
+    }
+
+    function render() {
+      const b = engine.getBoard();
+      const status = engine.gameStatus();
+
+      // Find the king in check (if any) to give it a red glow
+      let checkSq = -1;
+      if (status === 'check' || status === 'checkmate') {
+        checkSq = b.indexOf(engine.whiteToMove() ? 'K' : 'k');
       }
 
-      // "e2" -> 52, same math as your C++ squareIndex
-      function sq(name) {
-        return (8 - Number(name[1])) * 8 + (name.charCodeAt(0) - 97);
+      boardEl.innerHTML = '';
+      for (let sq = 0; sq < 64; sq++) {
+        const row = Math.floor(sq / 8);
+        const col = sq % 8;
+
+        const div = document.createElement('div');
+        div.className = 'square ' + ((row + col) % 2 === 0 ? 'light' : 'dark');
+        if (lastMove.includes(sq)) div.classList.add('last');
+        if (sq === selected)       div.classList.add('selected');
+        if (sq === checkSq)        div.classList.add('check');
+        if (targets.includes(sq))  div.classList.add(b[sq] === '.' ? 'target' : 'capture');
+
+        const p = b[sq];
+        if (p !== '.') {
+          const span = document.createElement('span');
+          span.className = 'piece ' + (p === p.toUpperCase() ? 'white' : 'black');
+          span.textContent = GLYPHS[p.toLowerCase()] + '\uFE0E';
+          div.appendChild(span);
+        }
+
+        if (col === 0) {
+          const r = document.createElement('span');
+          r.className = 'coord rank';
+          r.textContent = 8 - row;
+          div.appendChild(r);
+        }
+        if (row === 7) {
+          const f = document.createElement('span');
+          f.className = 'coord file';
+          f.textContent = 'abcdefgh'[col];
+          div.appendChild(f);
+        }
+
+        div.onclick = () => onSquareClick(sq);
+        boardEl.appendChild(div);
+      }
+    }
+
+    function onSquareClick(sq) {
+      if (busy || gameOver) return;
+
+      // Clicked a highlighted target: make the move
+      if (selected !== -1 && targets.includes(sq)) {
+        engine.playMove(selected, sq, '');   // pawns auto-promote to a queen
+        lastMove = [selected, sq];
+        selected = -1;
+        targets = [];
+        render();
+        if (!checkGameOver()) engineTurn();
+        return;
       }
 
-      draw();
-      statusEl.textContent = 'Engine loaded. Your move!';
+      // Clicked one of your own pieces: select it and show its moves
+      const p = engine.getBoard()[sq];
+      const isMine = p !== '.' && (p === p.toUpperCase()) === engine.whiteToMove();
+      if (isMine && sq !== selected) {
+        selected = sq;
+        const t = engine.legalTargets(sq);
+        targets = t ? t.split(',').map(Number) : [];
+      } else {
+        selected = -1;
+        targets = [];
+      }
+      render();
+    }
 
-      document.getElementById('go').onclick = () => {
-        const mv = document.getElementById('move').value.trim();
-        if (mv.length < 4 || !engine.playMove(sq(mv.slice(0, 2)), sq(mv.slice(2, 4)), mv.slice(4))) {
-          statusEl.textContent = 'Illegal move, try again.';
-          return;
+    function engineTurn() {
+      busy = true;
+      setStatus(ENGINE_NAME + ' is thinking...');
+
+      // Small delay so the browser can redraw before the engine starts crunching
+      setTimeout(() => {
+        const mv = engine.engineMove(Number(depthEl.value));
+        if (mv) lastMove = [sqIndex(mv.slice(0, 2)), sqIndex(mv.slice(2, 4))];
+        busy = false;
+        render();
+        if (!checkGameOver()) {
+          setStatus(engine.gameStatus() === 'check' ? 'Check! Your move.' : 'Your move.');
         }
-        draw();
-        if (engine.gameStatus() === 'checkmate') { statusEl.textContent = 'Checkmate, you win!'; return; }
+      }, 50);
+    }
 
-        statusEl.textContent = 'Engine is thinking...';
-        setTimeout(() => {
-          const reply = engine.engineMove(3);
-          draw();
-          const s = engine.gameStatus();
-          if (s === 'checkmate')      statusEl.textContent = 'Checkmate, the engine wins!';
-          else if (s === 'stalemate') statusEl.textContent = 'Stalemate, draw.';
-          else statusEl.textContent = 'Engine played ' + reply + (s === 'check' ? ', check!' : '');
-        }, 50);
-      };
+    // Returns true if the game just ended
+    function checkGameOver() {
+      const s = engine.gameStatus();
+      if (s === 'checkmate') {
+        gameOver = true;
+        // If it's White's turn and White is mated, the engine won
+        setStatus(engine.whiteToMove() ? LOSE_MESSAGE : WIN_MESSAGE);
+        return true;
+      }
+      if (s === 'stalemate') {
+        gameOver = true;
+        setStatus(DRAW_MESSAGE);
+        return true;
+      }
+      return false;
+    }
+
+    function newGame() {
+      engine.newGame();
+      selected = -1;
+      targets = [];
+      lastMove = [];
+      busy = false;
+      gameOver = false;
+      render();
+      setStatus('Your move.');
+    }
+
+    document.getElementById('newGame').onclick = () => { if (engine) newGame(); };
+
+    // Load the C++ engine, then start
+    createChessEngine().then(e => {
+      engine = e;
+      newGame();
     });
   </script>
 </body>
