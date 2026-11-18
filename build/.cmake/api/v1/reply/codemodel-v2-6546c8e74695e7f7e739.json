@@ -18,7 +18,8 @@
 					[
 						0,
 						1,
-						2
+						2,
+						3
 					]
 				}
 			],
@@ -35,7 +36,8 @@
 					[
 						0,
 						1,
-						2
+						2,
+						3
 					]
 				}
 			],
@@ -44,7 +46,7 @@
 				{
 					"directoryIndex" : 0,
 					"id" : "ALL_BUILD::@6890427a1f51a3e7e1df",
-					"jsonFile" : "target-ALL_BUILD-Debug-175202f399f3817f1cd8.json",
+					"jsonFile" : "target-ALL_BUILD-Debug-5b01834ac0228010e060.json",
 					"name" : "ALL_BUILD",
 					"projectIndex" : 0
 				},
@@ -57,8 +59,15 @@
 				},
 				{
 					"directoryIndex" : 0,
+					"id" : "chesscore::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-chesscore-Debug-855699235a82c37a838f.json",
+					"name" : "chesscore",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
 					"id" : "engine::@6890427a1f51a3e7e1df",
-					"jsonFile" : "target-engine-Debug-41bc4c9700f8a8707992.json",
+					"jsonFile" : "target-engine-Debug-5f36a5bb419addfe2015.json",
 					"name" : "engine",
 					"projectIndex" : 0
 				}
@@ -81,7 +90,8 @@
 					[
 						0,
 						1,
-						2
+						2,
+						3
 					]
 				}
 			],
@@ -98,7 +108,8 @@
 					[
 						0,
 						1,
-						2
+						2,
+						3
 					]
 				}
 			],
@@ -107,7 +118,7 @@
 				{
 					"directoryIndex" : 0,
 					"id" : "ALL_BUILD::@6890427a1f51a3e7e1df",
-					"jsonFile" : "target-ALL_BUILD-Release-175202f399f3817f1cd8.json",
+					"jsonFile" : "target-ALL_BUILD-Release-5b01834ac0228010e060.json",
 					"name" : "ALL_BUILD",
 					"projectIndex" : 0
 				},
@@ -120,8 +131,15 @@
 				},
 				{
 					"directoryIndex" : 0,
+					"id" : "chesscore::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-chesscore-Release-c3de7e78bb1440d11d02.json",
+					"name" : "chesscore",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
 					"id" : "engine::@6890427a1f51a3e7e1df",
-					"jsonFile" : "target-engine-Release-46c4ac16979b7f3a55a7.json",
+					"jsonFile" : "target-engine-Release-bb985863cabf3e2a42b6.json",
 					"name" : "engine",
 					"projectIndex" : 0
 				}
@@ -144,7 +162,8 @@
 					[
 						0,
 						1,
-						2
+						2,
+						3
 					]
 				}
 			],
@@ -161,7 +180,8 @@
 					[
 						0,
 						1,
-						2
+						2,
+						3
 					]
 				}
 			],
@@ -170,7 +190,7 @@
 				{
 					"directoryIndex" : 0,
 					"id" : "ALL_BUILD::@6890427a1f51a3e7e1df",
-					"jsonFile" : "target-ALL_BUILD-MinSizeRel-175202f399f3817f1cd8.json",
+					"jsonFile" : "target-ALL_BUILD-MinSizeRel-5b01834ac0228010e060.json",
 					"name" : "ALL_BUILD",
 					"projectIndex" : 0
 				},
@@ -183,8 +203,15 @@
 				},
 				{
 					"directoryIndex" : 0,
+					"id" : "chesscore::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-chesscore-MinSizeRel-945137ed406141c361f6.json",
+					"name" : "chesscore",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
 					"id" : "engine::@6890427a1f51a3e7e1df",
-					"jsonFile" : "target-engine-MinSizeRel-df82d40cda76bc3536fc.json",
+					"jsonFile" : "target-engine-MinSizeRel-75614e78577bf623c2fd.json",
 					"name" : "engine",
 					"projectIndex" : 0
 				}
@@ -207,7 +234,8 @@
 					[
 						0,
 						1,
-						2
+						2,
+						3
 					]
 				}
 			],
@@ -224,7 +252,8 @@
 					[
 						0,
 						1,
-						2
+						2,
+						3
 					]
 				}
 			],
@@ -233,7 +262,7 @@
 				{
 					"directoryIndex" : 0,
 					"id" : "ALL_BUILD::@6890427a1f51a3e7e1df",
-					"jsonFile" : "target-ALL_BUILD-RelWithDebInfo-175202f399f3817f1cd8.json",
+					"jsonFile" : "target-ALL_BUILD-RelWithDebInfo-5b01834ac0228010e060.json",
 					"name" : "ALL_BUILD",
 					"projectIndex" : 0
 				},
@@ -246,8 +275,15 @@
 				},
 				{
 					"directoryIndex" : 0,
+					"id" : "chesscore::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-chesscore-RelWithDebInfo-1bfb31066d12a254c3e7.json",
+					"name" : "chesscore",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
 					"id" : "engine::@6890427a1f51a3e7e1df",
-					"jsonFile" : "target-engine-RelWithDebInfo-1611e9dc2c9ce372334b.json",
+					"jsonFile" : "target-engine-RelWithDebInfo-4b3b7ba588c5816b442c.json",
 					"name" : "engine",
 					"projectIndex" : 0
 				}
