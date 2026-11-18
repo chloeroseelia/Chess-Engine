@@ -361,6 +361,38 @@
     button:hover, select:hover { box-shadow: 3px 3px 0 rgba(26,26,26,0.2); }
     button:disabled { opacity: 0.4; cursor: default; box-shadow: none; }
 
+    /* ---------- Obituaries ---------- */
+    .obits { display: flex; flex-direction: column; gap: 10px; max-height: 420px; overflow-y: auto; }
+    .obit {
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+      padding-top: 8px;
+      border-top: 1px solid #c9c1b2;
+      animation: inkIn 500ms ease-out;
+    }
+    .obit-portrait {
+      flex-shrink: 0;
+      width: 44px;
+      height: 44px;
+      border: 1px solid var(--ink);
+      background: var(--paper-light);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .obit-portrait .piece { width: 38px; height: 38px; }
+    .obit-name { margin: 0; font-size: 14px; font-weight: 700; }
+    .obit-text { margin: 0; font-size: 13px; font-style: italic; line-height: 1.4; color: var(--muted); }
+    .obit-count { color: var(--faint); }
+
+    /* New stories fade in like fresh ink */
+    .fresh { animation: inkIn 500ms ease-out; }
+    @keyframes inkIn {
+      from { opacity: 0; filter: blur(2px); }
+      to   { opacity: 1; filter: blur(0); }
+    }
+
     /* ---------- Footer ---------- */
     .footer {
       margin-top: auto;
@@ -462,7 +494,8 @@
         <div class="boxed">
           <p class="label">Weather</p>
           <p class="section-title" style="font-size: 26px;" id="weatherTitle">Clear Skies</p>
-          <p class="body-text" style="font-size: 13px;" id="weatherText">Our forecaster arrives in the next edition.</p>
+          <p class="body-text" style="font-size: 13px;" id="weatherText">Calm conditions across the board. Light pawn activity expected.</p>
+          <p class="placeholder" style="font-size: 11px;">Forecast based on the engine’s own evaluation.</p>
         </div>
       </div>
 
@@ -492,8 +525,11 @@
         </div>
 
         <div style="display: flex; flex-direction: column; gap: 8px;">
-          <p class="section-title" style="font-size: 28px;">Obituaries</p>
-          <p class="placeholder" id="obits">No pieces have fallen. Yet.</p>
+          <div style="display: flex; align-items: baseline; justify-content: space-between;">
+            <p class="section-title" style="font-size: 28px;">Obituaries</p>
+            <p class="label obit-count" id="obitCount"></p>
+          </div>
+          <div class="obits" id="obits"></div>
         </div>
       </div>
     </div>
@@ -542,17 +578,21 @@
       if (msg.type === 'ready' || msg.type === 'state') {
         state = msg.state;
         busy = false;
+        resetNewsroom();
         setTicker('ENGINE READY', 'the presses are warm. your move.', '');
         render();
       }
 
       if (msg.type === 'played') {
+        const before = state.board;
         state = msg.state;
         history.push(msg.san);
+        const ev = analyzeMove(before, state.board, msg.from, msg.to, msg.san, true);
+        if (ev.captured) { obituaries.unshift(writeObituary(ev)); renderObits(); }
         lastMove = [msg.from, msg.to];
         stampSq = msg.to;
         render();
-        updateStory(msg.san, true);
+        publishStory(ev);
         if (!checkGameOver()) engineTurn();
       }
 
@@ -563,11 +603,15 @@
       }
 
       if (msg.type === 'engineMoved') {
+        const before = state.board;
         state = msg.state;
         busy = false;
         const r = msg.result;
+        let ev = null;
         if (r) {
           history.push(r.san);
+          ev = analyzeMove(before, state.board, r.from, r.to, r.san, false);
+          if (ev.captured) { obituaries.unshift(writeObituary(ev)); renderObits(); }
           lastMove = [r.from, r.to];
           stampSq = r.to;
           setTicker('ENGINE PLAYED', r.san, r.nodes.toLocaleString() + ' positions · ' + (r.ms / 1000).toFixed(2) + 's');
@@ -575,8 +619,10 @@
             r.nodes.toLocaleString() + ' positions in ' + (r.ms / 1000).toFixed(2) + ' s';
         }
         render();
-        if (r) updateStory(r.san, false);
+        if (ev) publishStory(ev);
         updateEval();
+        writeEditorial();
+        writeWeather();
         checkGameOver();
       }
     };
@@ -660,14 +706,320 @@
       score.scrollTop = score.scrollHeight;
     }
 
-    // ---------- The story (Step 4 makes this smart) ----------
-    function updateStory(san, byHuman) {
-      const moveNo = Math.ceil(history.length / 2);
-      $('kicker').textContent = 'Move ' + moveNo;
-      $('headline').textContent = (byHuman ? 'White Plays ' : 'Engine Answers ') + san;
-      $('deck').textContent = byHuman ? 'The engine is weighing its reply.' : 'Your move.';
-      $('caption').textContent = 'Fig. ' + moveNo + '. After ' + moveNo + '. ' +
-        (byHuman ? san : '… ' + san) + (state.whiteToMove ? '. White to move.' : '. Black to move.');
+    // =====================================================
+    //  THE NEWSROOM: turns chess moves into newspaper stories
+    // =====================================================
+
+    const NAMES = { p: 'Pawn', n: 'Knight', b: 'Bishop', r: 'Rook', q: 'Queen', k: 'King' };
+    const VALUE = { p: 1, n: 3, b: 3, r: 5, q: 9, k: 100 };
+    const pick = list => list[Math.floor(Math.random() * list.length)];
+    const sqName = sq => 'abcdefgh'[sq % 8] + (8 - Math.floor(sq / 8));
+    const isWhitePiece = p => p !== '.' && p === p.toUpperCase();
+
+    let origins = [];      // origins[sq] = the square that piece started the game on
+    let obituaries = [];   // newest first
+
+    function resetNewsroom() {
+      const start = 'rnbqkbnrpppppppp' + '.'.repeat(32) + 'PPPPPPPPRNBQKBNR';
+      origins = [];
+      for (let i = 0; i < 64; i++) origins[i] = start[i] === '.' ? null : i;
+      obituaries = [];
+      renderObits();
+      $('editorialTitle').textContent = 'A Fresh Start';
+      $('editorialText').textContent = 'The editors have no opinion yet. Make a move.';
+      $('weatherTitle').textContent = 'Clear Skies';
+      $('weatherText').textContent = 'Calm conditions across the board. Light pawn activity expected.';
+    }
+
+    // ---- A tiny copy of the engine's attack rules, so the newsroom can spot forks ----
+    function pathClear(b, from, to) {
+      const fr = Math.floor(from / 8), fc = from % 8, tr = Math.floor(to / 8), tc = to % 8;
+      const sr = Math.sign(tr - fr), sc = Math.sign(tc - fc);
+      let r = fr + sr, c = fc + sc;
+      while (r !== tr || c !== tc) {
+        if (b[r * 8 + c] !== '.') return false;
+        r += sr; c += sc;
+      }
+      return true;
+    }
+
+    function attacksSquare(b, from, to) {
+      const p = b[from];
+      const dr = Math.floor(to / 8) - Math.floor(from / 8), dc = to % 8 - from % 8;
+      const ar = Math.abs(dr), ac = Math.abs(dc);
+      switch (p.toLowerCase()) {
+        case 'n': return (ar === 2 && ac === 1) || (ar === 1 && ac === 2);
+        case 'k': return ar <= 1 && ac <= 1;
+        case 'r': return (dr === 0 || dc === 0) && pathClear(b, from, to);
+        case 'b': return ar === ac && pathClear(b, from, to);
+        case 'q': return (dr === 0 || dc === 0 || ar === ac) && pathClear(b, from, to);
+        case 'p': return ac === 1 && dr === (isWhitePiece(p) ? -1 : 1);
+      }
+      return false;
+    }
+
+    // Does the piece on `sq` attack two or more valuable enemy pieces?
+    function findFork(b, sq) {
+      const p = b[sq];
+      if (p === '.') return [];
+      const victims = [];
+      for (let t = 0; t < 64; t++) {
+        const q = b[t];
+        if (t === sq || q === '.' || isWhitePiece(q) === isWhitePiece(p)) continue;
+        const k = q.toLowerCase();
+        const worthIt = k === 'k' || VALUE[k] > VALUE[p.toLowerCase()];
+        if (worthIt && VALUE[k] >= 3 && attacksSquare(b, sq, t)) victims.push(k);
+      }
+      return victims.length >= 2 ? victims.sort((a, b2) => VALUE[b2] - VALUE[a]) : [];
+    }
+
+    // ---- Work out everything that happened in a move ----
+    function analyzeMove(before, after, from, to, san, byHuman) {
+      const piece = before[from];
+      const kind = piece.toLowerCase();
+
+      let capturedSq = -1;
+      if (before[to] !== '.') capturedSq = to;
+      else if (kind === 'p' && from % 8 !== to % 8) capturedSq = to + (isWhitePiece(piece) ? 8 : -8);   // en passant
+      const captured = capturedSq >= 0 ? before[capturedSq] : null;
+      const capturedOrigin = capturedSq >= 0 ? origins[capturedSq] : null;
+
+      // Keep track of where every surviving piece came from
+      if (capturedSq >= 0) origins[capturedSq] = null;
+      origins[to] = origins[from];
+      origins[from] = null;
+      if (san.startsWith('O-O')) {
+        const kingside = to > from;
+        const rookFrom = kingside ? from + 3 : from - 4;
+        const rookTo   = kingside ? from + 1 : from - 1;
+        origins[rookTo] = origins[rookFrom];
+        origins[rookFrom] = null;
+      }
+
+      return {
+        byHuman, san, piece, kind, from, to,
+        captured, capturedSq, capturedOrigin,
+        enPassant: captured !== null && capturedSq !== to,
+        check: san.endsWith('+'),
+        mate: san.endsWith('#'),
+        castle: san === 'O-O' ? 'short' : san === 'O-O-O' ? 'long' : null,
+        promo: san.includes('='),
+        forked: san.startsWith('O-O') ? [] : findFork(after, to),
+        moveNo: Math.ceil(history.length / 2),
+        firstMove: history.length === 1,
+        after
+      };
+    }
+
+    // ---- Headlines ----
+    function writeHeadline(ev) {
+      const P = NAMES[ev.kind];
+      const s = sqName(ev.to);
+      const who = ev.byHuman ? 'Challenger' : 'Engine';
+      const victim = ev.captured ? NAMES[ev.captured.toLowerCase()] : null;
+      let kicker = 'Move ' + ev.moveNo;
+      let headline;
+
+      if (ev.forked.length) {
+        kicker += ' · Breaking';
+        const names = ev.forked.map(k => NAMES[k]);
+        headline = (ev.forked.includes('k') && ev.forked.includes('q'))
+          ? pick([`${P} Forks Royal Family`, `Royal Family Forked on ${s}!`])
+          : pick([`${P} Forks ${names[0]} and ${names[1]}`, `Double Attack! ${P} Hits ${names[0]} and ${names[1]}`]);
+      } else if (victim === 'Queen') {
+        kicker += ' · Breaking';
+        headline = ev.byHuman
+          ? pick([`Engine’s Queen Falls on ${s}!`, 'Queen Captured; Editors in Shock'])
+          : pick([`Challenger’s Queen Lost on ${s}`, 'Engine Claims the Queen']);
+      } else if (victim && ev.check) {
+        kicker += ' · Breaking';
+        headline = `${P} Takes ${victim} with Check`;
+      } else if (ev.check) {
+        kicker += ' · Breaking';
+        headline = ev.byHuman
+          ? pick(['Check! Engine’s King Under Fire', `${P} Checks the King from ${s}`])
+          : pick(['Engine Delivers Check', 'Check! The Challenger’s King Is Harassed']);
+      } else if (ev.enPassant) {
+        kicker += ' · Rare Sighting';
+        headline = 'En Passant! Pawn Taken in Passing';
+      } else if (victim) {
+        kicker += ' · Casualty Report';
+        if (victim === 'Pawn') {
+          headline = ev.byHuman
+            ? pick([`${P} Snaps Up Pawn on ${s}`, `Pawn Lost on ${s}; Engine Shrugs`])
+            : pick([`Engine Pockets a Pawn on ${s}`, `Machine Nibbles Pawn on ${s}`]);
+        } else {
+          headline = ev.byHuman
+            ? pick([`Challenger Takes ${victim} on ${s}`, `${victim} Falls to ${P} on ${s}`])
+            : pick([`Engine Seizes ${victim} on ${s}`, `Machine Claims ${victim} on ${s}`]);
+        }
+      } else if (ev.promo) {
+        kicker += ' · Coronation';
+        headline = `Pawn Crowned on ${s}!`;
+      } else if (ev.castle) {
+        headline = ev.castle === 'short'
+          ? `${who} Castles, Seeks Shelter`
+          : `${who} Castles Long; Rooks Connect`;
+      } else if (ev.firstMove) {
+        kicker = 'Opening Move';
+        headline = `The Game Begins: ${ev.san}`;
+      } else {
+        const quiet = {
+          p: [`Pawn Advances to ${s}`, `${who} Pushes to ${s}`],
+          n: [`Knight Gallops to ${s}`, `Knight Leaps into ${s}`],
+          b: [`Bishop Slips to ${s}`, 'Bishop Takes the Long Diagonal'],
+          r: [`Rook Rolls to ${s}`, `Rook Swings Over to ${s}`],
+          q: [`Queen Ventures to ${s}`, `Queen Surveys the Board from ${s}`],
+          k: [`King Steps to ${s}`, `Royal Relocation: King to ${s}`]
+        };
+        headline = pick(quiet[ev.kind]);
+      }
+
+      const deck = ev.byHuman
+        ? pick(['The engine is weighing its reply.',
+                'Sources say the engine is “considering its options.”',
+                'The engine has declined to comment while it thinks.'])
+        : pick(['Your move.', 'The challenger is expected to respond shortly.', 'Readers await the challenger’s reply.']);
+
+      return { kicker, headline, deck };
+    }
+
+    function publishStory(ev) {
+      const story = writeHeadline(ev);
+      setFresh('kicker', story.kicker);
+      setFresh('headline', story.headline);
+      setFresh('deck', story.deck);
+
+      let caption = `Fig. ${ev.moveNo}. After ${ev.moveNo}. ${ev.byHuman ? '' : '… '}${ev.san}.`;
+      if (ev.forked.length) {
+        caption += ` The ${NAMES[ev.kind].toLowerCase()} attacks the ${ev.forked.map(k => NAMES[k].toLowerCase()).join(' and ')} at once.`;
+      }
+      caption += state.whiteToMove ? ' White to move.' : ' Black to move.';
+      $('caption').textContent = caption;
+    }
+
+    // Swap text and replay the "fresh ink" fade
+    function setFresh(id, text) {
+      const el = $(id);
+      el.textContent = text;
+      el.classList.remove('fresh');
+      void el.offsetWidth;   // restart the animation
+      el.classList.add('fresh');
+    }
+
+    // ---- Obituaries ----
+    function writeObituary(ev) {
+      const victim = ev.captured;
+      const k = victim.toLowerCase();
+      const color = isWhitePiece(victim) ? 'White' : 'Black';
+      const home = ev.capturedOrigin !== null ? sqName(ev.capturedOrigin) : 'parts unknown';
+      const siblings = ev.after.split('').filter(c => c === victim).length;
+
+      const tribute = {
+        p: [`Advanced as far as ${sqName(ev.capturedSq)}.`, 'Never once took a step backward.', 'Small, but brave.'],
+        n: ['Remembered for its unpredictable leaps.', 'Never moved in a straight line in its life.'],
+        b: ['Never strayed from its color.', 'A lifelong devotee of the diagonal.'],
+        r: ['A pillar of the back rank.', 'Straightforward to the very end.'],
+        q: ['A tremendous loss. Flags fly at half-mast.', 'The most powerful piece on the board, until today.'],
+        k: ['Long live the king.']
+      };
+      const family = siblings > 0
+        ? `Survived by ${siblings} sibling${siblings === 1 ? '' : 's'}.`
+        : 'The last of its kind.';
+      const extra = pick(['', '', 'The family requests privacy.', 'In lieu of flowers, please play e4.']);
+
+      return {
+        piece: victim,
+        name: `${color} ${NAMES[k]}, of ${home}`,
+        text: `${pick(tribute[k])} Taken by a ${NAMES[ev.kind].toLowerCase()} on move ${ev.moveNo}` +
+              `${ev.enPassant ? ', en passant' : ''}. ${family} ${extra}`.trim()
+      };
+    }
+
+    function renderObits() {
+      const box = $('obits');
+      box.innerHTML = '';
+      $('obitCount').textContent = obituaries.length ? obituaries.length + ' fallen' : '';
+      if (!obituaries.length) {
+        box.innerHTML = '<p class="placeholder">No pieces have fallen. Yet.</p>';
+        return;
+      }
+      obituaries.forEach((o, i) => {
+        const div = document.createElement('div');
+        div.className = 'obit';
+        if (i > 0) div.style.animation = 'none';   // only the newest one fades in
+        div.innerHTML = `<div class="obit-portrait">${pieceSVG(o.piece)}</div>
+          <div><p class="obit-name"></p><p class="obit-text"></p></div>`;
+        div.querySelector('.obit-name').textContent = o.name;
+        div.querySelector('.obit-text').textContent = o.text;
+        box.appendChild(div);
+      });
+    }
+
+    // ---- The engine's editorial (it plays Black, so its advantage is −evaluation) ----
+    function writeEditorial() {
+      const adv = -state.evaluation;
+      let title, text;
+      if (adv > 50000) {
+        title = 'We Regret to Inform You';
+        text = 'The editors have seen the end of this game, and it does not favor the challenger. We will be gracious about it. Mostly.';
+      } else if (adv < -50000) {
+        title = 'Off the Record';
+        text = 'The editors decline to comment on the current position. Our lawyers have advised silence.';
+      } else if (adv > 400) {
+        title = pick(['Inevitable', 'A Matter of Time']);
+        text = pick(['The editors would like to thank the challenger for a lovely game. It is not over, technically.',
+                     'We have run the numbers. The numbers are on our side.']);
+      } else if (adv > 120) {
+        title = pick(['Quietly Optimistic', 'Things Are Going Well']);
+        text = pick(['The editors are pleased with recent developments and see no reason to panic. For us.',
+                     'A small but meaningful edge. We are trying not to gloat.']);
+      } else if (adv >= -120) {
+        title = pick(['A Balanced Affair', 'All Square']);
+        text = pick(['The position is even. The editors find this acceptable, for now.',
+                     'Neither side has the upper hand. The editors are watching closely.']);
+      } else if (adv >= -400) {
+        title = pick(['Concerns Mount', 'A Rude Knight']);
+        text = pick(['The editors concede that the position has grown uncomfortable. We expect order to be restored shortly.',
+                     'We are aware of the situation and are handling it. Please stop asking.']);
+      } else {
+        title = pick(['Not Ideal', 'No Comment']);
+        text = pick(['The editors are reviewing their life choices.',
+                     'We would like to remind readers that this is only a game.']);
+      }
+      setFresh('editorialTitle', title);
+      $('editorialText').textContent = text;
+    }
+
+    // ---- Weather: "chance of checkmate" from how lopsided the evaluation is ----
+    function writeWeather() {
+      const cp = state.evaluation;
+      const loser = cp > 0 ? 'Black' : 'White';
+      const kingSq = sqName(state.board.indexOf(cp > 0 ? 'k' : 'K'));
+      const mag = Math.min(Math.abs(cp), 2000);
+      let title, text;
+
+      if (Math.abs(cp) > 50000) {
+        title = `Hurricane Over ${kingSq}`;
+        text = `Checkmate is in the forecast. ${loser} kings should seek shelter immediately.`;
+      } else if (mag < 60) {
+        title = 'Clear Skies';
+        text = 'Calm conditions across the board. Light pawn activity expected.';
+      } else {
+        const chance = Math.max(3, Math.min(97, Math.round(100 / (1 + Math.exp(-(mag - 350) / 120)))));
+        if (mag < 200) {
+          title = `Clouds Gathering Over ${kingSq}`;
+          text = `${chance}% chance of checkmate. Light showers near the ${loser.toLowerCase()} king.`;
+        } else if (mag < 500) {
+          title = `Stormy Over ${kingSq}`;
+          text = `${chance}% chance of checkmate. ${loser} kings are advised to stay indoors.`;
+        } else {
+          title = `Severe Weather Warning: ${kingSq}`;
+          text = `${chance}% chance of checkmate. Evacuate the ${loser.toLowerCase()} king at once.`;
+        }
+      }
+      setFresh('weatherTitle', title);
+      $('weatherText').textContent = text;
     }
 
     function updateEval() {
@@ -678,10 +1030,10 @@
       } else {
         const pawns = (cp / 100).toFixed(1);
         if (Math.abs(cp) < 30) text = 'Roughly even.';
-        else text = (cp > 0 ? '+' + pawns + ' for White.' : pawns.replace('-', '−') + ' for Black.');
+        else if (cp > 0) text = '+' + pawns + ' for White. The editors dispute this figure.';
+        else text = pawns.replace('-', '−') + ' for Black.';
       }
       $('evalText').textContent = text;
-      // Black's share of the bar: 50% when even, more when Black is better
       const whiteShare = 50 + 50 * Math.tanh(Math.max(-1500, Math.min(1500, cp)) / 400);
       $('evalBlack').style.width = (100 - whiteShare) + '%';
     }
